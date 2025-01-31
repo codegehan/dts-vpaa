@@ -1,25 +1,30 @@
 <?php 
-
+ob_start();
 include("header.php");
 $sender = $_SESSION['userno'];
 $departmentNo = $_SESSION['departmentno'];
-
 
 if(isset($_POST['Accept_Document'])) {
     try{
         $db->pdo->beginTransaction();
         $transactionCode = $_POST['Transaction_Code'];
-        $updateStatus = "INSERT INTO file_logs (Transaction_Code, Action_By, Status) VALUES (?, ?, 'APPROVED')";
-        $db->query($updateStatus, [$transactionCode, $sender]);
+        $updateStatus = "INSERT INTO file_logs (Transaction_Code,Receiving_Office, Action_By, Status) VALUES (?, ?, ?, 'APPROVED')";
+        $db->query($updateStatus, [$transactionCode, $departmentNo, $sender]);
 
         $updateFileStatus = "UPDATE files SET Status = 'APPROVED' WHERE Transaction_Code = ?";
         $db->query($updateFileStatus, [$transactionCode]);
 
         $db->pdo->commit();
-        echo '<script>toastr.success("File Processed Successfully");</script>';
+        $_SESSION['message'] = "File Processed Successfully";
+        $_SESSION['messagestatus'] = 'Success';
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit();
     } catch(Exception $e) {
         $db->pdo->rollBack();
-        echo '<script>toastr.error("'.$e->getMessage().'");</script>';
+        $_SESSION['message'] = "Error processing file";
+        $_SESSION['messagestatus'] = 'Error';
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit();
     }
 }
 if(isset($_POST['Decline_Document'])) {
@@ -34,12 +39,24 @@ if(isset($_POST['Decline_Document'])) {
         $db->query($updateFileStatus, [$transactionCode]);
 
         $db->pdo->commit();
-        echo '<script>toastr.success("File Processed Successfully");</script>';
+        $_SESSION['message'] = "File Processed Successfully";
+        $_SESSION['messagestatus'] = 'Success';
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit();
     } catch(Exception $e) {
         $db->pdo->rollBack();
-        echo '<script>toastr.error("'.$e->getMessage().'");</script>';
+        $_SESSION['message'] = "Error processing file";
+        $_SESSION['messagestatus'] = 'Error';
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit();
     }
 }
+if(isset($_POST['action']) && strtoupper($_POST['action']) == 'UPDATEVIEWSTATUS') {
+    $transCode = $_POST['transaction_code'];
+    $sql = "UPDATE files SET Viewed_On = CURRENT_TIMESTAMP() WHERE Transaction_Code = ?";
+    $db->query($sql, [$transCode]);
+}
+ob_end_flush();
 ?>
 
 <div class="main-content p-3">
@@ -64,12 +81,12 @@ if(isset($_POST['Decline_Document'])) {
                         <table class="table table-bordered" id="documentTable">
                             <thead>
                                 <tr>
-                                    <th>Transaction Code</th>
-                                    <th>Sender</th>
-                                    <th>Description</th>
-                                    <th>Purpose</th>
-                                    <th>File</th>
-                                    <th class="text-center">Actions</th>
+                                    <th class="align-top">Code</th>
+                                    <th class="align-top">Sender</th>
+                                    <th class="align-top">Description</th>
+                                    <th class="align-top">Purpose</th>
+                                    <th class="align-top">File</th>
+                                    <th class="text-center align-top">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>                               
@@ -106,7 +123,16 @@ if(isset($_POST['Decline_Document'])) {
                                         <td><?php echo htmlspecialchars($incoming['sender_info']); ?></td>
                                         <td style="white-space: pre-wrap; word-wrap: break-word; max-width: 400px;"><?php echo htmlspecialchars(strtoupper($incoming['Description'])); ?></td>
                                         <td style="white-space: pre-wrap; word-wrap: break-word; max-width: 400px;"><?php echo htmlspecialchars(ucwords($incoming['Purpose'])); ?></td>
-                                        <td style="width: 200px;"><a href="../files/<?php echo htmlspecialchars($incoming['Filename']); ?>" target="_blank" download><?php echo htmlspecialchars(pathinfo($incoming['Filename'], PATHINFO_FILENAME)); ?>.<?php echo pathinfo($incoming['Filename'], PATHINFO_EXTENSION); ?></a></td>
+                                        <td style="width: 200px;">
+                                            <?php 
+                                                $fileUrl = "../files/" . htmlspecialchars($incoming['Filename']);
+                                                $fileName = htmlspecialchars(pathinfo($incoming['Filename'], PATHINFO_FILENAME));
+                                                $fileExtension = pathinfo($incoming['Filename'], PATHINFO_EXTENSION);
+                                            ?>
+                                            <span><u><i><?= $fileName . '.' . $fileExtension ?></i></u> = </span>
+                                            <a href="<?=$fileUrl?>" onclick="sendLastView('<?=$incoming['Transaction_Code']?>')" target="_blank" class="">View</a>
+                                            <!-- <a href="<?= $fileUrl ?>" download class="">Download</a> -->
+                                        </td>
                                         <td class="text-center" style="width: 140px;">
                                             <form method="POST">
                                                 <input type="hidden" name="Transaction_Code" value="<?php echo htmlspecialchars($incoming['Transaction_Code']); ?>">
@@ -161,6 +187,9 @@ if(isset($_POST['Decline_Document'])) {
 </div>
 
 <style>
+th {
+    background-color: lightgray !important;
+}
 .btn-primary {
     background-color: #0d47a1;
     border: none;
@@ -253,5 +282,20 @@ if(isset($_POST['Decline_Document'])) {
 document.addEventListener('DOMContentLoaded', function() {
     $('#documentTable').DataTable();
 });
+function sendLastView(tcode) {
+    console.log("Sending update for Transaction codce: " + tcode);
+    const lastViewedFormData = new FormData();
+    lastViewedFormData.append('action', 'UPDATEVIEWSTATUS');
+    lastViewedFormData.append('transaction_code', tcode);
+    fetch(window.location.href, {
+        method: 'POST',
+        body: lastViewedFormData,
+    })
+    .then()
+    .catch(error => {
+        console.error('Error during request.');
+    })
+}
+
 </script>
 <?php include("footer.php");?>

@@ -121,6 +121,8 @@ $monthlyData = $allMonths;
                 </div>
             </div>
 
+
+            <!-- DIRI NALANG KULANG KULANG KULANG KULANG KULANG KULANG -->
             <!-- Recent Activities -->
             <div class="col-xl-4 col-lg-5">
                 <div class="card shadow mb-4">
@@ -194,8 +196,15 @@ document.addEventListener('DOMContentLoaded', function() {
             datasets: [
                 {
                     label: 'Incoming Documents',
-                    data: monthlyData.map(data => data.pending),
+                    data: monthlyData.map(data => data.incoming),
                     borderColor: 'rgb(78, 115, 223)',
+                    tension: 0.3,
+                    fill: false
+                },
+                {
+                    label: 'Pending Documents',
+                    data: monthlyData.map(data => data.pending),
+                    borderColor: 'rgb(135, 206, 235)',
                     tension: 0.3,
                     fill: false
                 },

@@ -1,22 +1,18 @@
 <?php 
-
+ob_start();
 include("header.php");
-
 $sender = $_SESSION['userno'];
 if(isset($_POST['sendDocument'])) {
     $transactionCode = 'DOC-'. date('His');
     $description = strtoupper($_POST['description']);
     $purpose = strtoupper($_POST['purpose']);
     $sendTo = $_POST['sendTo'];
-    
     // Get file extension
     $fileExt = pathinfo($_FILES['fileInput']['name'], PATHINFO_EXTENSION);
     // Create new filename with transaction code
     $filename = pathinfo($_FILES['fileInput']['name'], PATHINFO_FILENAME) . '_' . $transactionCode . '.' . $fileExt;
-
     try {
         $db->pdo->beginTransaction();
-        
         // Upload file first to check if successful
         $targetDir = "../files/";
         $targetFile = $targetDir . $filename;
@@ -24,30 +20,36 @@ if(isset($_POST['sendDocument'])) {
         if (!move_uploaded_file($_FILES["fileInput"]["tmp_name"], $targetFile)) {
             throw new Exception("Error uploading file");
         }
-        
-        $insertTransaction = "INSERT INTO files (Transaction_Code, Sender, Description, Purpose, Filename) VALUES (?, ?, ?, ?, ?)";
-        $db->query($insertTransaction, [$transactionCode, $sender, $description, $purpose, $filename]);
+        $insertTransaction = "INSERT INTO files (Transaction_Code, Sender, Receiving_Office, Description, Purpose, Filename) VALUES (?, ?, ?, ?, ?, ?)";
+        $db->query($insertTransaction, [$transactionCode, $sender, $sendTo, $description, $purpose, $filename]);
 
         $insertTransactionDetail = "INSERT INTO file_logs (Transaction_Code, Receiving_Office) VALUES (?, ?)";
         $db->query($insertTransactionDetail, [$transactionCode, $sendTo]);
         
         $db->pdo->commit();
-        echo '<script>toastr.success("Transaction Sent Successfully");</script>';
-        
+        $_SESSION['message'] = "Transaction Sent Successfully";
+        $_SESSION['messagestatus'] = 'Success';
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit();
     } catch(Exception $e) {
         $db->pdo->rollBack();
         // Remove uploaded file if exists after rollback
         if (isset($targetFile) && file_exists($targetFile)) {
             unlink($targetFile);
         }
-        echo '<script>toastr.error("'.$e->getMessage().'");</script>';
-    }
+        $_SESSION['message'] = "Failed to make transaction";
+        $_SESSION['messagestatus'] = 'Error';
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit();
+    } 
+    ob_end_flush();
 }
 $vpaaSql = "SELECT *, Campus_Description FROM department LEFT JOIN campus ON department.Campus = campus.Campus_No WHERE Department_No = 1";
 $vpaaData = $db->fetchAll($vpaaSql);
 
+$allDepartment = "SELECT *, Campus_Description FROM department LEFT JOIN campus ON department.Campus = campus.Campus_No WHERE Department_No != 1";
+$allDepartmentData = $db->fetchAll($allDepartment);
 ?>
-
 <div class="main-content p-3">
     <div class="container">
         <div class="row mb-4">
@@ -77,8 +79,24 @@ $vpaaData = $db->fetchAll($vpaaSql);
                         </div>
                         <div class="mb-3">
                             <label for="sendTo" class="form-label">Send To</label>
-                            <input type="text" class="form-control" value="<?=$vpaaData[0]['Department_No']?>" name="sendTo" hidden>
-                            <input type="text" class="form-control" value="<?=$vpaaData[0]['Department_Description'] . " - " . $vpaaData[0]['Campus_Description']?>" name="description" disabled>
+                            <?php 
+                                if(!empty($vpaaData)) { 
+                                 if (strtoupper($_SESSION['accounttype']) == 'ADMIN' || strtoupper($_SESSION['department']) == 'VPAA UNIT') { ?>
+                                    <select class="form-control" name="sendTo">
+                                        <option value=""></option>
+                                        <?php 
+                                            foreach($allDepartmentData as $dpt) { ?>
+                                                <option value="<?=$dpt['Department_No']?>"><?=strtoupper($dpt['Department_Description']). " - " . strtoupper($dpt['Campus_Description'])?></option>
+                                        <?php } ?>
+                                    </select>
+                                 <?php } else { ?>
+                                    <input type="text" class="form-control" value="<?=$vpaaData[0]['Department_No']?>" name="sendTo" hidden>
+                                    <input type="text" class="form-control" value="<?=strtoupper($vpaaData[0]['Department_Description']) . " - " . strtoupper($vpaaData[0]['Campus_Description'])?>" name="description" disabled>
+                                 <?php }?>
+                                
+                            <?php } else { ?>
+                                <input type="text" class="form-control" value="No department registered" name="description" disabled>
+                            <?php } ?>
                         </div>
 
                         <!-- File Upload Section -->
@@ -88,9 +106,9 @@ $vpaaData = $db->fetchAll($vpaaSql);
                                 <div class="file-upload-message">
                                     <i class="fas fa-cloud-upload-alt"></i>
                                     <p>Drag and drop files here or click to browse</p>
-                                    <p class="small text-muted">Supported formats: PDF, DOC, DOCX, XLS, XLSX (Max 10MB per file)</p>
+                                    <p class="small text-muted">Supported formats: PDF (Max 10MB per file)</p>
                                 </div>
-                                <input type="file" id="fileInput" name="fileInput" class="file-upload-input" multiple accept=".pdf,.doc,.docx,.xls,.xlsx" required onchange="validateFiles(this)">
+                                <input type="file" id="fileInput" name="fileInput" class="file-upload-input" multiple accept=".pdf" required onchange="validateFiles(this)">
                             </div>
                             
                             <!-- File Preview Container -->
@@ -149,14 +167,16 @@ $vpaaData = $db->fetchAll($vpaaSql);
                     </div>
                     
                     <div class="table-responsive">
-                        <table class="table table-bordered" id="documentTable">
+                        <table class="table table-bordered" style="font-size: 12px;" id="documentTable">
                             <thead>
                                 <tr>
-                                    <th>T-Code</th>
-                                    <th>Office</th>
-                                    <th>Description</th>
-                                    <th>Purpose</th>
-                                    <th class="text-center">Status</th>
+                                    <th class="align-top">T-Code</th>
+                                    <th class="align-top">Office</th>
+                                    <th class="align-top">Description</th>
+                                    <th class="align-top">Purpose</th>
+                                    <th class="align-top">Date Submitted</th>
+                                    <th class="align-top">Viewed On</th>
+                                    <th class="text-center align-top">Status</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -164,12 +184,13 @@ $vpaaData = $db->fetchAll($vpaaSql);
                                 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
                                 $limit = 10;
                                 $offset = ($page - 1) * $limit;
-
                                 // Base query - Get files and latest file_log entry for receiving office
                                 $baseQuery = "SELECT f.*, 
                                             d.Department_Description,
                                             fl.Receiving_Office,
-                                            fl.Note
+                                            fl.Note,
+                                            f.Date_Created,
+                                            f.Viewed_On
                                             FROM files f
                                             LEFT JOIN (
                                                 SELECT Transaction_Code, Receiving_Office, Note
@@ -211,27 +232,36 @@ $vpaaData = $db->fetchAll($vpaaSql);
                                 $totalRecords = count($totalResult);
                                 $totalPages = ceil($totalRecords / $limit);
 
-                                foreach($allMyDocument as $doc) { ?>
+                                if (count($allMyDocument) > 0) :
+                                    foreach($allMyDocument as $doc) : ?>
+                                        <tr>
+                                            <td><?=htmlspecialchars($doc['Transaction_Code']);?></td>
+                                            <td><?=htmlspecialchars(strtoupper($doc['Department_Description'])); ?></td>
+                                            <td><?=htmlspecialchars(ucwords($doc['Description']));?></td>
+                                            <td><?=htmlspecialchars(ucwords($doc['Purpose']));?></td>
+                                            <td><?=htmlspecialchars(ucwords($doc['Date_Created']));?></td>
+                                            <td><?=htmlspecialchars(ucwords($doc['Viewed_On']));?></td>
+                                            <td class="text-center">
+                                                <?php 
+                                                    if(htmlspecialchars(strtoupper($doc['Status'])) == "PENDING") { ?>
+                                                    <span class="badge bg-warning text-dark">Pending</span>
+                                                <?php } else if(htmlspecialchars(strtoupper($doc['Status'])) == "APPROVED") { ?>
+                                                    <span class="badge bg-success">Approved</span>
+                                                <?php } else { ?>
+                                                    <span class="badge bg-danger">Rejected</span>
+                                                    <button class="btn btn-sm btn-secondary py-0 view-details" data-id="<?php echo $doc['Transaction_Code']; ?>">
+                                                        <i class="bi bi-eye"></i>
+                                                    </button>
+                                                <?php } ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach;  ?>
+                                <?php else: ?>
                                     <tr>
-                                        <td><?php echo htmlspecialchars($doc['Transaction_Code']); ?></td>
-                                        <td><?php echo htmlspecialchars(strtoupper($doc['Department_Description'])); ?></td>
-                                        <td><?php echo htmlspecialchars(ucwords($doc['Description'])); ?></td>
-                                        <td><?php echo htmlspecialchars(ucwords($doc['Purpose'])); ?></td>
-                                        <td class="text-center">
-                                            <?php 
-                                                if(htmlspecialchars(strtoupper($doc['Status'])) == "PENDING") { ?>
-                                                <span class="badge bg-warning text-dark">Pending</span>
-                                            <?php } else if(htmlspecialchars(strtoupper($doc['Status'])) == "APPROVED") { ?>
-                                                <span class="badge bg-success">Approved</span>
-                                            <?php } else { ?>
-                                                <span class="badge bg-danger">Rejected</span>
-                                                <button class="btn btn-sm btn-secondary py-0 view-details" data-id="<?php echo $doc['Transaction_Code']; ?>">
-                                                    <i class="bi bi-eye"></i>
-                                                </button>
-                                            <?php } ?>
-                                        </td>
+                                        <td colspan="5" class="text-center">No data available</td>
                                     </tr>
-                                <?php } ?>
+                                <?php endif; ?>
+
                             </tbody>
                         </table>
 
@@ -269,6 +299,9 @@ $vpaaData = $db->fetchAll($vpaaSql);
     </div>
 </div>
 <style>
+th {
+    background-color: lightgray !important;
+}
 .file-upload-wrapper {
     border: 2px dashed #ccc;
     border-radius: 5px;
@@ -449,10 +482,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // File type icons mapping
     const fileIcons = {
         'pdf': 'fa-file-pdf',
-        'doc': 'fa-file-word',
-        'docx': 'fa-file-word',
-        'xls': 'fa-file-excel',
-        'xlsx': 'fa-file-excel'
+        // 'doc': 'fa-file-word',
+        // 'docx': 'fa-file-word',
+        // 'xls': 'fa-file-excel',
+        // 'xlsx': 'fa-file-excel'
     };
 
     // Format file size
@@ -468,7 +501,13 @@ document.addEventListener('DOMContentLoaded', function() {
     function createFilePreview(file) {
         const extension = file.name.split('.').pop().toLowerCase();
         const iconClass = fileIcons[extension] || 'fa-file';
-        
+        console.log(file.type);
+
+        if (file.type !== 'application/pdf') {
+            toastr.error("Only PDF files is allowed to be uploaded");
+            return;
+        }
+
         const filePreview = document.createElement('div');
         filePreview.className = 'file-preview-item';
         filePreview.innerHTML = `
@@ -504,7 +543,6 @@ document.addEventListener('DOMContentLoaded', function() {
     fileInput.addEventListener('change', function(e) {
         filePreviewContainer.innerHTML = ''; // Clear previous previews
         const files = e.target.files;
-        
         for (let file of files) {
             const preview = createFilePreview(file);
             filePreviewContainer.appendChild(preview);

@@ -1,5 +1,7 @@
 <?php 
 include("header.php");
+require_once("../classes/encryption.php");
+$encryption = new Encryption('09124765961'); // change here for key encryption
 
 // At the top of your PHP section, store the POST values if they exist
 $formData = [];
@@ -46,7 +48,7 @@ if(isset($_POST['addUser'])) {
             }
         }
         if (!$hasError) {
-            $addUser = "INSERT INTO account_user (Firstname, Middlename, Lastname, Suffix, Campus, Department, Account_Type, Email, Password) VALUES (?,?,?,?,?,?,?,?,?)";
+            $addUser = "INSERT INTO account_user (Firstname, Middlename, Lastname, Suffix, Campus, Department, Account_Type, Email, Password) VALUES (UPPER(?),UPPER(?),UPPER(?),UPPER(?),?,?,?,?, SHA2(?, 256))";
             $db->query($addUser, array_values($formData));
             echo '<script>toastr.success("User added successfully");</script>';
         }
@@ -54,6 +56,60 @@ if(isset($_POST['addUser'])) {
         echo '<script>toastr.error("'.$e->getMessage().'");</script>';
         $hasError = true;
     }
+}
+if(isset($_POST['updateUser'])) {
+    $id = htmlspecialchars($_GET['id'], ENT_QUOTES, 'UTF-8');
+
+    $firstname = trim($_POST['firstname']);
+    $middlename = trim($_POST['middlename']);
+    $lastname = trim($_POST['lastname']);
+    $suffix = trim($_POST['suffix']);
+    $campus = trim($_POST['campus']);
+    $department = trim($_POST['department']);
+    $accountType = trim($_POST['accountType']);
+    $email = trim($_POST['email']);
+    $user_no = $encryption->decrypt($id);
+    try {
+        $updateUser = "UPDATE account_user 
+                        SET Firstname = UPPER(?), 
+                            Middlename = UPPER(?), 
+                            Lastname = UPPER(?), 
+                            Suffix = UPPER(?), 
+                            Campus  = ?, 
+                            Department = ?, 
+                            Account_Type = ?, 
+                            Email = ?, 
+                            Date_Updated = CURRENT_TIMESTAMP() 
+                        WHERE User_No = ? ";
+        $result = $db->query($updateUser, [$firstname, $middlename, $lastname, $suffix, $campus, $department, $accountType, $email, $user_no]);
+        if(!$result) {
+            echo '<script>toastr.error("Failed to update user");</script>';
+        } else {
+            echo '<script>toastr.success("User updated successfully");</script>';
+            echo '<script>setTimeout(function() { window.location.href="user.php"; }, 1000);</script>';
+        }
+    } catch(Exception $e) {
+        echo '<script>toastr.error("'.$e->getMessage().'");</script>';
+    }
+}
+
+if(isset($_GET['id'])) {
+    $id = htmlspecialchars($_GET['id'], ENT_QUOTES, 'UTF-8');
+    $decryptedId = $encryption->decrypt($id);
+    $sql = "SELECT UPPER(a.Firstname) AS Firstname,
+                UPPER(a.Middlename) AS Middlename,
+                UPPER(a.Lastname) AS Lastname,
+                UPPER(a.Suffix) AS Suffix,
+                a.Account_Type,
+                a.Email,
+                c.Campus_Description,d.Department_Description 
+            FROM account_user a 
+            LEFT JOIN campus c ON c.Campus_No = a.Campus 
+            LEFT JOIN department d ON d.Department_No = a.Department
+            WHERE a.User_No = ?";
+    
+    $result = $db->fetchAll($sql, [$decryptedId]);
+    $u = $result[0];
 }
 ?>
 
@@ -80,15 +136,15 @@ if(isset($_POST['addUser'])) {
                             <div class="row">
                                 <div class="col">
                                     <label for="firstname" class="form-label">Firstname <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" id="firstname" name="firstname" maxLength="15" required>
+                                    <input type="text" class="form-control" id="firstname" name="firstname" maxLength="15" required value="<?=isset($_GET['id'])?htmlspecialchars($u['Firstname']):''?>">
                                 </div>
                                 <div class="col">
                                     <label for="middlename" class="form-label">Middlename</label>
-                                    <input type="text" class="form-control" id="middlename" name="middlename" maxLength="15" >
+                                    <input type="text" class="form-control" id="middlename" name="middlename" maxLength="15" value="<?=isset($_GET['id'])?htmlspecialchars($u['Middlename']):''?>">
                                 </div>
                                 <div class="col">
                                     <label for="lastname" class="form-label">Lastname <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" id="lastname" name="lastname" maxLength="15" required>
+                                    <input type="text" class="form-control" id="lastname" name="lastname" maxLength="15" required value="<?=isset($_GET['id'])?htmlspecialchars($u['Lastname']):''?>">
                                 </div>
                             </div>
                             <div class="row">
@@ -96,11 +152,11 @@ if(isset($_POST['addUser'])) {
                                     <label for="suffix" class="form-label">Suffix</label>
                                     <select class="form-control" id="suffix" name="suffix">      
                                         <option value=""></option>
-                                        <option value="jr">Jr</option>
-                                        <option value="sr">Sr</option>
-                                        <option value="iii">III</option>
-                                        <option value="iv">IV</option>
-                                        <option value="v">V</option>
+                                        <option value="jr" <?= (isset($u['Suffix']) && $u['Suffix'] == 'jr') ? 'selected' : '' ?>>Jr</option>
+                                        <option value="sr" <?= (isset($u['Suffix']) && $u['Suffix'] == 'sr') ? 'selected' : '' ?>>Sr</option>
+                                        <option value="iii" <?= (isset($u['Suffix']) && $u['Suffix'] == 'iii') ? 'selected' : '' ?>>III</option>
+                                        <option value="iv" <?= (isset($u['Suffix']) && $u['Suffix'] == 'iv') ? 'selected' : '' ?>>IV</option>
+                                        <option value="v" <?= (isset($u['Suffix']) && $u['Suffix'] == 'v') ? 'selected' : '' ?>>V</option>
                                     </select>
                                 </div>
                                 <div class="col">
@@ -110,9 +166,11 @@ if(isset($_POST['addUser'])) {
                                         <?php 
                                             $fetchAllCampus = "SELECT * FROM campus";
                                             $allCampusData = $db->fetchAll($fetchAllCampus);
-                                            foreach($allCampusData as $campus) { ?>
-                                                <option value="<?=$campus['Campus_No']?>"><?=ucwords($campus['Campus_Description'])?></option>
-                                        <?php } ?>
+                                            foreach ($allCampusData as $campus) {
+                                                $selected = (isset($u['Campus_Description']) && $u['Campus_Description'] == $campus['Campus_Description']) ? 'selected' : '';
+                                                echo '<option value="' . $campus['Campus_No'] . '" ' . $selected . '>' . ucwords($campus['Campus_Description']) . '</option>';
+                                            }
+                                        ?>
                                     </select>
                                 </div>
                                 <div class="col">
@@ -122,9 +180,11 @@ if(isset($_POST['addUser'])) {
                                         <?php 
                                             $fetchAllDepartment = "SELECT * FROM department";
                                             $allDepartmentData = $db->fetchAll($fetchAllDepartment);
-                                            foreach($allDepartmentData as $department) { ?>
-                                                <option value="<?=$department['Department_No']?>"><?=ucwords($department['Department_Description'])?></option>
-                                        <?php } ?>
+                                            foreach ($allDepartmentData as $department) {
+                                                $selected = (isset($u['Department_Description']) && $u['Department_Description'] == $department['Department_Description']) ? 'selected' : '';
+                                                echo '<option value="' . $department['Department_No'] . '" ' . $selected . '>' . ucwords($department['Department_Description']) . '</option>';
+                                            }
+                                        ?>
                                     </select>
                                 </div>
                             </div>
@@ -133,25 +193,30 @@ if(isset($_POST['addUser'])) {
                                     <label for="accountType" class="form-label">Account Type <span class="text-danger">*</span></label>
                                     <select class="form-control" id="accountType" name="accountType" required>
                                         <option value=""></option>
-                                        <option value="staff">Staff</option>
-                                        <option value="admin">Admin</option>
+                                        <option value="staff" <?= (isset($u['Account_Type']) && $u['Account_Type'] == 'staff') ? 'selected' : '' ?>>Staff</option>
+                                        <option value="admin" <?= (isset($u['Account_Type']) && $u['Account_Type'] == 'admin') ? 'selected' : '' ?>>Admin</option>
                                     </select>
                                 </div>
                                 <div class="col">
                                     <label for="email" class="form-label">Email <span class="text-danger">*</span></label>
-                                    <input type="email" class="form-control" id="email" name="email" maxLength="30" required>
+                                    <input type="email" class="form-control" id="email" name="email" maxLength="30" required value="<?=isset($_GET['id'])?htmlspecialchars($u['Email']):''?>">
                                 </div>
                                 <div class="col">
                                     <label for="password" class="form-label">Password <span class="text-danger">*</span></label>
                                     <div class="input-group mb-3">   
-                                        <input type="password" class="form-control" placeholder="" aria-label="Example text with button addon" aria-describedby="button-addon1" name="password" maxLength="10" required>
-                                        <button class="btn btn-outline-secondary" type="button" id="button-addon1"><i class="bi bi-eye"></i></button>
+                                        <input type="password" class="form-control" id="userPassword" placeholder="" aria-label="Example text with button addon" aria-describedby="button-addon1" name="password" maxLength="10">
+                                        <button class="btn btn-outline-secondary" type="button" onclick="showPassword()" id="button-addon1"><i id="eyeDisplay" class="bi bi-eye-slash"></i></button>
                                     </div>
                                 </div>
                             </div>
                         </div>    
                         <div>
-                            <button type="submit" name="addUser" class="btn btn-primary" style="width:200px !important;">Save</button>
+                            <?php if(isset($_GET['id'])) { ?>
+                                <button type="submit" name="updateUser" class="btn btn-danger" style="width:200px !important;">Update</button>
+                                <a href="user.php" class="btn btn-primary" style="width:200px !important;">Cancel</a>
+                            <?php } else { ?>
+                                <button type="submit" name="addUser" class="btn btn-primary" style="width:200px !important;">Save</button>
+                            <?php } ?>
                         </div> 
                     </form>
                 </div>
@@ -195,7 +260,7 @@ if(isset($_POST['addUser'])) {
                                     <th>Account Type</th>
                                     <th class="text-start">Last Login</th>
                                     <th>Status</th>
-                                    <th>Actions</th>
+                                    <th class="text-center">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -221,8 +286,8 @@ if(isset($_POST['addUser'])) {
                                                 <?php }
                                             ?>
                                         </td>
-                                        <td>
-                                            <button class="btn btn-sm btn-info me-1"><i class="bi bi-pencil"></i></button>
+                                        <td class="text-center">
+                                            <a href="user.php?id=<?=$encryption->encrypt($user['User_No'])?>" class="btn btn-sm btn-info">Update</a>
                                         </td>
                                     </tr>
                                 <?php } ?>
@@ -325,7 +390,23 @@ if(isset($_POST['addUser'])) {
             }
         }
     });
+    
     $('#userTable').DataTable();
 });
+
+function showPassword(){
+    const userPassword = document.getElementById('userPassword');
+    const eyeDisplay = document.getElementById('eyeDisplay');
+    if (userPassword.type === "password") {
+        userPassword.type = 'text';
+        eyeDisplay.classList.remove('bi-eye-slash');
+        eyeDisplay.classList.add('bi-eye');
+    } else {
+        userPassword.type = 'password';
+        eyeDisplay.classList.remove('bi-eye');
+        eyeDisplay.classList.add('bi-eye-slash');
+    }
+    
+}
 </script>
 <?php include("footer.php");?>

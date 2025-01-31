@@ -10,11 +10,11 @@ const linkMap = {
     "/vp-unit/user/campus.php": "campus-link",
     "/vp-unit/user/archiving.php": "archiving-link",
     "/vp-unit/user/incoming.php": "incoming-link",
-    "/vp-unit/user/completed.php": "completed-transaction-link"
+    "/vp-unit/user/completed.php": "completed-transaction-link",
+    "/vp-unit/user/report.php": "report-link"
 };
 
 const activeLinkId = linkMap[path];
-console.log("Active link ID:", activeLinkId);
 if (activeLinkId) {
     const activeLink = document.getElementById(activeLinkId);
     if (activeLink) {

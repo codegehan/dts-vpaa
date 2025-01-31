@@ -11,7 +11,7 @@ if (!isset($_SESSION["fullname"])) {
     $departmentNo = $_SESSION['departmentno'];
 }
 
-$sql_incoming = "SELECT COUNT(*) as incoming FROM file_logs WHERE UPPER(status) = 'PENDING' AND Receiving_Office = ?";
+$sql_incoming = "SELECT COUNT(*) as incoming FROM files WHERE UPPER(status) = 'PENDING' AND Receiving_Office = ?";
 $result_incoming = $db->fetchAll($sql_incoming, [$departmentNo]);
 $count_incoming = $result_incoming[0]['incoming'];
 
@@ -505,6 +505,12 @@ $count_completed = $result_completed[0]['completed'];
                             Campus
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="report.php" id="report-link">
+                            <i class="bi bi-file-earmark-text"></i>
+                            Report
+                        </a>
+                    </li>
                     </ul>
                 </div>
             <?php } ?>
@@ -515,7 +521,7 @@ $count_completed = $result_completed[0]['completed'];
             <img src="../assets/img/user.png" alt="User Avatar">
             <div class="user-info">
                 <h6><?=$_SESSION['email']?></h6>
-                <p><?=ucwords($_SESSION['accounttype'])?> | <?=$_SESSION['department']?> | <?=$_SESSION['campus']?></p>
+                <p><?=strtoupper($_SESSION['accounttype'])?> | <?=strtoupper($_SESSION['department'])?> | <?=strtoupper($_SESSION['campus'])?></p>
             </div>
             <!-- <button class="logout-btn">
                 <i class="bi bi-box-arrow-right"></i>
@@ -525,6 +531,17 @@ $count_completed = $result_completed[0]['completed'];
             </a>
         </div>
     </div>
+
+<?php
+    if (isset($_SESSION['message'])) {
+    $message = $_SESSION['message'];
+    $messagestatus = $_SESSION['messagestatus'];
+    if ($messagestatus == "Error") { echo '<script>toastr.error("' . htmlspecialchars($message) . '")</script>'; } 
+    else { echo '<script>toastr.success("' . htmlspecialchars($message) . '")</script>'; }
+    unset($_SESSION['message']);
+    unset($_SESSION['messagestatus']);
+    }
+?>
 
     <!-- Add this JavaScript before closing body tag -->
     <script>

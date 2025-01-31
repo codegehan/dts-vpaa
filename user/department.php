@@ -10,7 +10,7 @@ if(isset($_POST['Add_Department'])) {
     // Check if the description is empty
     if (!empty($departmentDescription) && !empty($campus)) {
         $newDepartmentSql = "INSERT INTO department (Department_Description, Campus) VALUES (?, ?)";
-        $newDepartmentParam = [$departmentDescription, $campus];
+        $newDepartmentParam = [strtoupper($departmentDescription), $campus];
         if ($db->execute($newDepartmentSql, $newDepartmentParam)) {
             echo "<script>alert('New department added!')</script>";
             echo "<script>window.location.href = window.location.href;</script>";

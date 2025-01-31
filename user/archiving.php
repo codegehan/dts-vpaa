@@ -1,9 +1,45 @@
 <?php 
-
+ob_start();
 include("header.php");
-
+$sender = $_SESSION['userno'];
+if(isset($_POST['saveFileArchived'])) {
+    $transactionCode = 'DOC-'. date('His');
+    $description = strtoupper($_POST['description']);
+    $purpose = strtoupper($_POST['purpose']);
+    $sendTo = $_SESSION['departmentno'];
+    // Get file extension
+    $fileExt = pathinfo($_FILES['fileInput']['name'], PATHINFO_EXTENSION);
+    // Create new filename with transaction code
+    $filename = pathinfo($_FILES['fileInput']['name'], PATHINFO_FILENAME) . '_' . $transactionCode . '.' . $fileExt;
+    try {
+        $db->pdo->beginTransaction();
+        // Upload file first to check if successful
+        $targetDir = "../files/";
+        $targetFile = $targetDir . $filename;
+        if (!move_uploaded_file($_FILES["fileInput"]["tmp_name"], $targetFile)) {
+            throw new Exception("Error uploading file");
+        }
+        $insertTransaction = "INSERT INTO files (Transaction_Code, Sender, Receiving_Office, Description, Purpose, Status, Filename) VALUES (?,?,?,?,?,'APPROVED',?)";
+        $db->query($insertTransaction, [$transactionCode, $sender, $sendTo, $description, $purpose, $filename]);
+        $db->pdo->commit();
+        $_SESSION['message'] = "File Saved Successfully";
+        $_SESSION['messagestatus'] = 'Success';
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit();
+    } catch(Exception $e) {
+        $db->pdo->rollBack();
+        // Remove uploaded file if exists after rollback
+        if (isset($targetFile) && file_exists($targetFile)) {
+            unlink($targetFile);
+        }
+        $_SESSION['message'] = "Failed to save file";
+        $_SESSION['messagestatus'] = 'Error';
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit();
+    } 
+    ob_end_flush();
+}
 ?>
-
 <div class="main-content p-3">
     <div class="container">
         <div class="row mb-4">
@@ -22,14 +58,14 @@ include("header.php");
                     <h6 class="m-0 font-weight-bold text-primary">New File</h6>
                 </div>
                 <div class="card-body">
-                    <form>
+                    <form method="POST" enctype="multipart/form-data">
                         <div class="mb-3">
                             <label for="description" class="form-label">Description</label>
-                            <input type="text" class="form-control" id="description">
+                            <input type="text" class="form-control" id="description" name="description" required>
                         </div>
                         <div class="mb-3">
                             <label for="purpose" class="form-label">Purpose</label>
-                            <textarea class="form-control" id="purpose" rows=4></textarea>
+                            <textarea class="form-control" id="purpose" rows=4 name="purpose" required></textarea>
                         </div>
                         <!-- File Upload Section -->
                         <div class="mb-3">
@@ -38,9 +74,9 @@ include("header.php");
                                 <div class="file-upload-message">
                                     <i class="fas fa-cloud-upload-alt"></i>
                                     <p>Drag and drop files here or click to browse</p>
-                                    <p class="small text-muted">Supported formats: PDF, DOC, DOCX, XLS, XLSX</p>
+                                    <p class="small text-muted">Supported formats: PDF</p>
                                 </div>
-                                <input type="file" id="fileInput" class="file-upload-input" multiple accept=".pdf,.doc,.docx,.xls,.xlsx">
+                                <input type="file" id="fileInput" name="fileInput" class="file-upload-input" multiple accept=".pdf">
                             </div>
                             
                             <!-- File Preview Container -->
@@ -48,14 +84,12 @@ include("header.php");
                         </div>
 
                         <div>
-                            <button type="submit" class="btn btn-primary w-100">Save</button>
+                            <button type="submit" name="saveFileArchived" class="btn btn-primary w-100">Save</button>
                         </div> 
                     </form>
                 </div>
             </div>
         </div>
-
-        
 
         <div class="col-xl-8 col-lg-5">
             <div class="card shadow mb-4">
@@ -66,214 +100,119 @@ include("header.php");
                     
                      <form action="">
                         <div class="row">
-                            <div class="col-4">
+                            <div class="col-12">
                                 <div class="form-group">
-                                    <label for="campus">Campus</label>
-                                    <select class="form-control" name="campus" id="campus">
-                                        <option value=""></option>
-                                        <option value="1">Dapitan - Main</option>
-                                        <option value="2">Dipolog</option>
-                                        <option value="3">Katipunan</option>
-                                    </select>
+                                    <label for="searchKey">Search <span style="font-size:12px;color:gray"><i>(ex.Transaction Code, Description, Purpose)</i></span></label>
+                                    <input type="text" class="form-control" id="searchKey" aria-describedby="searchKey">
                                 </div>
                             </div>
-                            <div class="col-4">
+                            <div class="col-6 mt-2">
                                 <div class="form-group">
-                                    <label for="exampleInputEmail1">File Category</label>
-                                    <select class="form-control" name="campus" id="campus">
-                                        <option value=""></option>
-                                        <option value="1">Prospectus</option>
-                                        <option value="2">Memorandums</option>
-                                        <option value="3">Communcations</option>
-                                    </select>
+                                    <label for="fromDateArchived">From:</label>
+                                    <input type="date" class="form-control" id="fromDateArchived" aria-describedby="fromDateArchived">
                                 </div>
                             </div>
-                            <div class="col-4">
+                            <div class="col-6 mt-2">
                                 <div class="form-group">
-                                    <label for="exampleInputEmail1">Date</label>
-                                    <input type="date" class="form-control" id="exampleInputEmail1" aria-describedby="emailHelp" placeholder="Enter email">
+                                    <label for="toDateArchived">To:</label>
+                                    <input type="date" class="form-control" id="toDateArchived" aria-describedby="toDateArchived">
                                 </div>
                             </div>
                         </div>
                         <div class="mt-2">
-                            <button class="btn btn-primary" style="width:150px;">Search</button>
+                            <button type="button" onclick="searchArchivedFiles()" class="btn btn-primary btn-sm ms-2 mt-2" style="width:100px;">Search</button>
+                            <a href="archiving.php" class="btn btn-primary btn-sm ms-2 mt-2" style="width:100px;">Back</a>
                         </div>
                     </form>
+
                     <hr>
                     <div class="table-responsive mt-3">
                         <table class="table table-bordered" id="fileTable" style="font-size:14px;">
                             <thead>
                                 <tr>
-                                    <th>
-                                        Transaction Code
-                                        <i class="fas fa-sort ms-1"></i>
-                                    </th>
-                                    <th>
-                                        Purpose
-                                        <i class="fas fa-sort ms-1"></i>
-                                    </th>
-                                    <th>
-                                        Description
-                                        <i class="fas fa-sort ms-1"></i>
-                                    </th>
-                                    <th>Actions</th>
+                                    <th class="align-top">Transaction Code</th>
+                                    <th class="align-top">Purpose</th>
+                                    <th class="align-top">Description</th>
+                                    <th class="align-top text-center">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr>
-                                    <td>TRX-2024-001</td>
-                                    <td>Documentation Request</td>
-                                    <td>Student Records Request</td>
-                                    <td class="text-center">
-                                        <button class="btn btn-sm btn-info me-1" title="View">
-                                            <i class="bi bi-cloud-arrow-down-fill"></i>
-                                        </button>
-                                        <button class="btn btn-sm btn-primary me-1" title="Edit">
-                                            <i class="bi bi-pencil-square"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>TRX-2024-001</td>
-                                    <td>Documentation Request</td>
-                                    <td>Student Records Request</td>
-                                    <td class="text-center">
-                                        <button class="btn btn-sm btn-info me-1" title="View">
-                                            <i class="bi bi-cloud-arrow-down-fill"></i>
-                                        </button>
-                                        <button class="btn btn-sm btn-primary me-1" title="Edit">
-                                            <i class="bi bi-pencil-square"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>TRX-2024-001</td>
-                                    <td>Documentation Request</td>
-                                    <td>Student Records Request</td>
-                                    <td class="text-center">
-                                        <button class="btn btn-sm btn-info me-1" title="View">
-                                            <i class="bi bi-cloud-arrow-down-fill"></i>
-                                        </button>
-                                        <button class="btn btn-sm btn-primary me-1" title="Edit">
-                                            <i class="bi bi-pencil-square"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>TRX-2024-001</td>
-                                    <td>Documentation Request</td>
-                                    <td>Student Records Request</td>
-                                    <td class="text-center">
-                                        <button class="btn btn-sm btn-info me-1" title="View">
-                                            <i class="bi bi-cloud-arrow-down-fill"></i>
-                                        </button>
-                                        <button class="btn btn-sm btn-primary me-1" title="Edit">
-                                            <i class="bi bi-pencil-square"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>TRX-2024-001</td>
-                                    <td>Documentation Request</td>
-                                    <td>Student Records Request</td>
-                                    <td class="text-center">
-                                        <button class="btn btn-sm btn-info me-1" title="View">
-                                            <i class="bi bi-cloud-arrow-down-fill"></i>
-                                        </button>
-                                        <button class="btn btn-sm btn-primary me-1" title="Edit">
-                                            <i class="bi bi-pencil-square"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>TRX-2024-001</td>
-                                    <td>Documentation Request</td>
-                                    <td>Student Records Request</td>
-                                    <td class="text-center">
-                                        <button class="btn btn-sm btn-info me-1" title="View">
-                                            <i class="bi bi-cloud-arrow-down-fill"></i>
-                                        </button>
-                                        <button class="btn btn-sm btn-primary me-1" title="Edit">
-                                            <i class="bi bi-pencil-square"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>TRX-2024-001</td>
-                                    <td>Documentation Request</td>
-                                    <td>Student Records Request</td>
-                                    <td class="text-center">
-                                        <button class="btn btn-sm btn-info me-1" title="View">
-                                            <i class="bi bi-cloud-arrow-down-fill"></i>
-                                        </button>
-                                        <button class="btn btn-sm btn-primary me-1" title="Edit">
-                                            <i class="bi bi-pencil-square"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>TRX-2024-001</td>
-                                    <td>Documentation Request</td>
-                                    <td>Student Records Request</td>
-                                    <td class="text-center">
-                                        <button class="btn btn-sm btn-info me-1" title="View">
-                                            <i class="bi bi-cloud-arrow-down-fill"></i>
-                                        </button>
-                                        <button class="btn btn-sm btn-primary me-1" title="Edit">
-                                            <i class="bi bi-pencil-square"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>TRX-2024-002</td>
-                                    <td>Clearance</td>
-                                    <td>Graduation Clearance</td>
-                                    <td class="text-center">
-                                        <button class="btn btn-sm btn-info me-1" title="View">
-                                            <i class="bi bi-cloud-arrow-down-fill"></i>
-                                        </button>
-                                        <button class="btn btn-sm btn-primary me-1" title="Edit">
-                                            <i class="bi bi-pencil-square"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>TRX-2024-003</td>
-                                    <td>Leave Request</td>
-                                    <td>Medical Leave Application</td>
-                                    <td class="text-center">
-                                        <button class="btn btn-sm btn-info me-1" title="View">
-                                            <i class="bi bi-cloud-arrow-down-fill"></i>
-                                        </button>
-                                        <button class="btn btn-sm btn-primary me-1" title="Edit">
-                                            <i class="bi bi-pencil-square"></i>
-                                        </button>
-                                    </td>
-                                </tr>
+                                <?php
+                                $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+                                $limit = 5;
+                                $offset = ($page - 1) * $limit;
+
+                                $totalQuery = "SELECT COUNT(*) as total FROM files WHERE Status = 'APPROVED'";
+                                $totalResult = $db->fetchAll($totalQuery);
+                                $totalRecords = $totalResult[0]['total'];
+
+                                $totalPages = ceil($totalRecords / $limit);
+
+                                if(isset($_GET['sk']) && isset($_GET['fr']) && isset($_GET['to'])) {
+                                    $searchKey = "%" . $_GET['sk'] . "%";
+                                    $fromDate = $_GET['fr'];
+                                    $toDate = $_GET['to'];
+
+                                    $query = "SELECT 
+                                            Transaction_Code,
+                                            Description,
+                                            Purpose,
+                                            Filename
+                                        FROM files
+                                        WHERE Status = 'APPROVED'
+                                        AND Date_Created BETWEEN ? AND ?
+                                        AND (Transaction_Code LIKE ? OR Description LIKE ? OR Purpose LIKE ?)
+                                        LIMIT $limit OFFSET $offset";
+                                    $archivedData = $db->fetchAll($query, [$fromDate, $toDate, $searchKey, $searchKey, $searchKey]);
+                                } else {
+                                    $query = "SELECT 
+                                            Transaction_Code,
+                                            Description,
+                                            Purpose,
+                                            Filename
+                                        FROM files
+                                        WHERE Status = 'APPROVED'
+                                        LIMIT $limit OFFSET $offset";
+                                        $archivedData = $db->fetchAll($query);
+                                }
+                                if (count($archivedData) > 0) : ?>
+                                <?php foreach ($archivedData as $archv) : ?>
+                                    <tr>
+                                        <td><?php echo htmlspecialchars($archv['Transaction_Code']); ?></td>
+                                        <td><?php echo htmlspecialchars($archv['Description']); ?></td>
+                                        <td><?php echo htmlspecialchars($archv['Purpose']); ?></td>
+                                        <td class="text-center">
+                                            <a href="<?php echo "../files/" . htmlspecialchars($archv['Filename']); ?>" target="_blank" class="btn btn-sm btn-primary me-1">
+                                                <i class="bi bi-eye-fill"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                                <?php else : ?>
+                                    <tr>
+                                        <td colspan="4" class="text-center">No archived data available</td>
+                                    </tr>
+                                <?php endif; ?>                                
+                                
                             </tbody>
                         </table>
-                    </div>
-                    <!-- Pagination -->
-                    <div class="d-flex justify-content-between align-items-center mt-3">
-                        <div class="dataTables_info">
-                            Showing 1 to 3 of 25 entries
-                        </div>
-                        <nav>
-                            <ul class="pagination mb-0">
-                                <li class="page-item disabled">
-                                    <a class="page-link" href="#" tabindex="-1">Previous</a>
+                        <nav aria-label="Page navigation">
+                            <ul class="pagination justify-content-center">
+                                <!-- Previous button -->
+                                <li class="page-item <?php echo ($page <= 1) ? 'disabled' : ''; ?>">
+                                    <a class="page-link" href="?page=<?php echo $page - 1; ?>" <?php echo ($page <= 1) ? 'tabindex="-1" aria-disabled="true"' : ''; ?>>Previous</a>
                                 </li>
-                                <li class="page-item active">
-                                    <a class="page-link" href="#">1</a>
-                                </li>
-                                <li class="page-item">
-                                    <a class="page-link" href="#">2</a>
-                                </li>
-                                <li class="page-item">
-                                    <a class="page-link" href="#">3</a>
-                                </li>
-                                <li class="page-item">
-                                    <a class="page-link" href="#">Next</a>
+                                
+                                <!-- Page numbers -->
+                                <?php for ($i = 1; $i <= $totalPages; $i++) { ?>
+                                    <li class="page-item <?php echo ($page == $i) ? 'active' : ''; ?>">
+                                        <a class="page-link" href="?page=<?php echo $i; ?>"><?php echo $i; ?></a>
+                                    </li>
+                                <?php } ?>
+                                
+                                <!-- Next button -->
+                                <li class="page-item <?php echo ($page >= $totalPages) ? 'disabled' : ''; ?>">
+                                    <a class="page-link" href="?page=<?php echo $page + 1; ?>" <?php echo ($page >= $totalPages) ? 'tabindex="-1" aria-disabled="true"' : ''; ?>>Next</a>
                                 </li>
                             </ul>
                         </nav>
@@ -284,6 +223,9 @@ include("header.php");
     </div>
 </div>
 <style>
+th {
+    background-color: lightgray !important;
+}
 .file-upload-wrapper {
     border: 2px dashed #ccc;
     border-radius: 5px;
@@ -463,11 +405,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // File type icons mapping
     const fileIcons = {
-        'pdf': 'fa-file-pdf',
-        'doc': 'fa-file-word',
-        'docx': 'fa-file-word',
-        'xls': 'fa-file-excel',
-        'xlsx': 'fa-file-excel'
+        'pdf': 'fa-file-pdf'
+        // 'doc': 'fa-file-word',
+        // 'docx': 'fa-file-word',
+        // 'xls': 'fa-file-excel',
+        // 'xlsx': 'fa-file-excel'
     };
 
     // Format file size
@@ -483,6 +425,11 @@ document.addEventListener('DOMContentLoaded', function() {
     function createFilePreview(file) {
         const extension = file.name.split('.').pop().toLowerCase();
         const iconClass = fileIcons[extension] || 'fa-file';
+
+        if (file.type !== 'application/pdf') {
+            toastr.error("Only PDF files is allowed to be uploaded");
+            return;
+        }
         
         const filePreview = document.createElement('div');
         filePreview.className = 'file-preview-item';
@@ -634,5 +581,18 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+function searchArchivedFiles() {
+    const searchKey = document.getElementById('searchKey').value.trim();
+    const fromDate = document.getElementById('fromDateArchived').value.trim();
+    const toDate = document.getElementById('toDateArchived').value.trim();
+
+    if (searchKey === '' || fromDate === '' || toDate === '') {
+        toastr.error("Please provide search keys and dates");
+    } else {
+        const url = `archiving.php?sk=${encodeURIComponent(searchKey)}&fr=${encodeURIComponent(fromDate)}&to=${encodeURIComponent(toDate)}`;
+        window.location.href = url;
+    }
+}
 </script>
 <?php include("footer.php");?>
