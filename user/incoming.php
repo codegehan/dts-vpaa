@@ -283,7 +283,6 @@ document.addEventListener('DOMContentLoaded', function() {
     $('#documentTable').DataTable();
 });
 function sendLastView(tcode) {
-    console.log("Sending update for Transaction codce: " + tcode);
     const lastViewedFormData = new FormData();
     lastViewedFormData.append('action', 'UPDATEVIEWSTATUS');
     lastViewedFormData.append('transaction_code', tcode);

@@ -249,7 +249,7 @@ $allDepartmentData = $db->fetchAll($allDepartment);
                                                     <span class="badge bg-success">Approved</span>
                                                 <?php } else { ?>
                                                     <span class="badge bg-danger">Rejected</span>
-                                                    <button class="btn btn-sm btn-secondary py-0 view-details" data-id="<?php echo $doc['Transaction_Code']; ?>">
+                                                    <button class="btn btn-sm btn-secondary py-0 view-details" data-toggle="modal" data-target="#noteModal" data-note="<?php echo $doc['Note']; ?>">
                                                         <i class="bi bi-eye"></i>
                                                     </button>
                                                 <?php } ?>
@@ -291,6 +291,22 @@ $allDepartmentData = $db->fetchAll($allDepartment);
                                 <?php endif; ?>
                             </ul>
                         </nav>
+
+                        <div class="modal fade" id="noteModal" tabindex="-1" role="dialog" aria-labelledby="noteModalLabel" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered" role="document">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title" id="noteModalLabel">Reason of declined document</h5>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div class="mb-3">
+                                            <textarea class="form-control text-danger" id="noteDisplayModal" disabled rows=5></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </div>
@@ -637,6 +653,14 @@ document.addEventListener('DOMContentLoaded', function() {
     if (urlParams.has('search')) {
         detailSearch.value = urlParams.get('search');
     }
+
+    
+});
+
+$('#noteModal').on('show.bs.modal', function (event) {
+    var button = $(event.relatedTarget);
+    var note = button.data('note');
+    $('#noteDisplayModal').val(note);
 });
 </script>
 <?php include("footer.php");?>

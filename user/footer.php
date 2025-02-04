@@ -2,16 +2,17 @@
 <script>
 const path = window.location.pathname;
 const linkMap = {
-    "/vp-unit/user/dashboard.php": "dashboard-link",
-    "/vp-unit/user/transaction.php": "transaction-link",
-    "/vp-unit/user/tracking": "track-files-link",
-    "/vp-unit/user/user.php": "user-link",
-    "/vp-unit/user/department.php": "department-link",
-    "/vp-unit/user/campus.php": "campus-link",
-    "/vp-unit/user/archiving.php": "archiving-link",
-    "/vp-unit/user/incoming.php": "incoming-link",
-    "/vp-unit/user/completed.php": "completed-transaction-link",
-    "/vp-unit/user/report.php": "report-link"
+    "/dts-vpaa/user/dashboard.php": "dashboard-link",
+    "/dts-vpaa/user/transaction.php": "transaction-link",
+    "/dts-vpaa/user/tracking": "track-files-link",
+    "/dts-vpaa/user/user.php": "user-link",
+    "/dts-vpaa/user/department.php": "department-link",
+    "/dts-vpaa/user/campus.php": "campus-link",
+    "/dts-vpaa/user/archiving.php": "archiving-link",
+    "/dts-vpaa/user/incoming.php": "incoming-link",
+    "/dts-vpaa/user/actioned-document.php": "actioned-link",
+    "/dts-vpaa/user/completed.php": "completed-transaction-link",
+    "/dts-vpaa/user/report.php": "report-link"
 };
 
 const activeLinkId = linkMap[path];
@@ -34,8 +35,14 @@ toastr.options = {
     "timeOut": "1500"
 };
 </script>
-<script src="https://cdn.jsdelivr.net/npm/popper.js@1.12.9/dist/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.12.9/dist/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script> -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.datatables.net/2.1.8/js/dataTables.js"></script>
+
+<!-- <script src="../assets/popper.js"></script>
+<script src="../node_models/bootstrap/dist/js/bootstrap.min.js"></script>
+<script src="../assets/chart.js"></script>
+<script src="../assets/dataTables.js"></script> -->
+
 </html>

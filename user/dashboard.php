@@ -61,7 +61,7 @@ $monthlyData = $allMonths;
                                 <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $incomingCount; ?></div>
                             </div>
                             <div class="col-auto">
-                                <i class="fas fa-file-import fa-2x text-gray-300"></i>
+                                <i class="bi bi-arrow-bar-down fa-2x text-gray-300"></i>
                             </div>
                         </div>
                     </div>
@@ -79,7 +79,7 @@ $monthlyData = $allMonths;
                                 <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $pendingCount; ?></div>
                             </div>
                             <div class="col-auto">
-                                <i class="fas fa-spinner fa-2x text-gray-300"></i>
+                                <i class="bi bi-hourglass-top fa-2x text-gray-300"></i>
                             </div>
                         </div>
                     </div>
@@ -97,7 +97,7 @@ $monthlyData = $allMonths;
                                 <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $completedCount; ?></div>
                             </div>
                             <div class="col-auto">
-                                <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                                <i class="bi bi-check2-circle fa-2x text-gray-300"></i>
                             </div>
                         </div>
                     </div>

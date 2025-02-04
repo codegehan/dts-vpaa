@@ -457,6 +457,12 @@ $count_completed = $result_completed[0]['completed'];
                             ?>
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="actioned-document.php" id="actioned-link">
+                            <i class="bi bi-check2-circle -arrow-down"></i>
+                            Actioned
+                        </a>
+                    </li>
                     
                     <li class="nav-item">
                         <a class="nav-link" href="transaction.php" id="transaction-link">
