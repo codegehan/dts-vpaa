@@ -1,0 +1,8 @@
+{
+    "require": {
+        "mpdf/mpdf": "^8.2",
+        "myclabs/deep-copy": "^1.12",
+        "setasign/fpdf": "^1.8",
+        "setasign/fpdi": "^2.6"
+    }
+}

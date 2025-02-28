@@ -1,0 +1,4 @@
+files/*
+database/*
+node_modules
+vendor
