@@ -2,6 +2,7 @@
 ob_start();
 include("header.php");
 $sender = $_SESSION['userno'];
+
 if(isset($_POST['sendDocument'])) {
     $transactionCode = 'DOC-'. date('His');
     $description = strtoupper($_POST['description']);
@@ -12,46 +13,66 @@ if(isset($_POST['sendDocument'])) {
 
     $sentToSingle = $_POST['sendTo'];
 
-    // if (empty($decodedSentTo)) {
-    //     // $_SESSION['message'] = "Please select office to sent.";
-    //     // $_SESSION['messagestatus'] = 'Error';
-    //     // header("Location: " . $_SERVER['PHP_SELF']);
-    //     // exit();
-        
-    // }
-   
-    // Get file extension
-    $fileExt = pathinfo($_FILES['fileInput']['name'], PATHINFO_EXTENSION);
-    // Create new filename with transaction code
-    $filename = pathinfo($_FILES['fileInput']['name'], PATHINFO_FILENAME) . '_' . $transactionCode . '.' . $fileExt;
+    $targetDir = "../files/";
     try {
         $db->pdo->beginTransaction();
-        // Upload file first to check if successful
-        $targetDir = "../files/";
-        $targetFile = $targetDir . $filename;
         
-        if (!move_uploaded_file($_FILES["fileInput"]["tmp_name"], $targetFile)) {
-            throw new Exception("Error uploading file");
+        // Get the original file information
+        $fileExt = pathinfo($_FILES['fileInput']['name'], PATHINFO_EXTENSION);
+        $originalFilename = pathinfo($_FILES['fileInput']['name'], PATHINFO_FILENAME);
+        $tmpFilePath = $_FILES["fileInput"]["tmp_name"];
+        
+        // Move the temporary file once to a temporary location
+        $tempStoragePath = $targetDir . 'temp_' . time() . '.' . $fileExt;
+        if (!move_uploaded_file($tmpFilePath, $tempStoragePath)) {
+            throw new Exception("Failed to move uploaded file to temporary storage.");
         }
-
+        
         if (!empty($decodedSentTo)) {
             foreach($decodedSentTo as $dpNo) {
+                // Generate unique transaction code for each recipient
                 $transactionCode = 'DOC-' . date('His') . substr(microtime(), 2, 3) . rand(1, 99);
+                
+                // Create a unique filename for each transaction
+                $filename = $originalFilename . '_' . $transactionCode . '.' . $fileExt;
+                $targetFile = $targetDir . $filename;
+                
+                // Copy the file from temporary storage to final destination with unique name
+                if (!copy($tempStoragePath, $targetFile)) {
+                    throw new Exception("Failed to create copy of file with transaction code.");
+                }
+                
+                // Insert transaction into database
                 $insertTransaction = "INSERT INTO files (Transaction_Code, Sender, Receiving_Office, Description, Purpose, Filename) VALUES (?, ?, ?, ?, ?, ?)";
                 $db->query($insertTransaction, [$transactionCode, $sender, $dpNo['sent_to_department'], $description, $purpose, $filename]);
-    
+                
+                // Insert the transaction detail
                 $insertTransactionDetail = "INSERT INTO file_logs (Transaction_Code, Receiving_Office) VALUES (?, ?)";
                 $db->query($insertTransactionDetail, [$transactionCode, $dpNo['sent_to_department']]);
             }
         } else {
+            // Single recipient logic
             $transactionCode = 'DOC-' . date('His') . substr(microtime(), 2, 3) . rand(1, 99);
+            
+            $filename = $originalFilename . '_' . $transactionCode . '.' . $fileExt;
+            $targetFile = $targetDir . $filename;
+            
+            // Copy the file from temporary storage
+            if (!copy($tempStoragePath, $targetFile)) {
+                throw new Exception("Failed to create copy of file with transaction code.");
+            }
+            
             $insertTransaction = "INSERT INTO files (Transaction_Code, Sender, Receiving_Office, Description, Purpose, Filename) VALUES (?, ?, ?, ?, ?, ?)";
             $db->query($insertTransaction, [$transactionCode, $sender, $sentToSingle, $description, $purpose, $filename]);
-
+            
             $insertTransactionDetail = "INSERT INTO file_logs (Transaction_Code, Receiving_Office) VALUES (?, ?)";
             $db->query($insertTransactionDetail, [$transactionCode, $sentToSingle]);
         }
         
+        // Delete the temporary file after we're done
+        if (file_exists($tempStoragePath)) {
+            unlink($tempStoragePath);
+        }
         
         $db->pdo->commit();
         $_SESSION['message'] = "Transaction Sent Successfully";
@@ -60,12 +81,24 @@ if(isset($_POST['sendDocument'])) {
         exit();
     } catch(Exception $e) {
         $db->pdo->rollBack();
-
-        // Remove uploaded file if exists after rollback
-        if (isset($targetFile) && file_exists($targetFile)) {
-            unlink($targetFile);
+        
+        // Clean up any files if there was an error
+        if (isset($tempStoragePath) && file_exists($tempStoragePath)) {
+            unlink($tempStoragePath);
         }
-        $_SESSION['message'] = "Failed to make transaction";
+        
+        // Also attempt to remove any partial copies that might have been created
+        foreach($decodedSentTo as $dpNo) {
+            $transactionCode = 'DOC-' . date('His') . substr(microtime(), 2, 3) . rand(1, 99);
+            $filename = $originalFilename . '_' . $transactionCode . '.' . $fileExt;
+            $targetFile = $targetDir . $filename;
+            
+            if (file_exists($targetFile)) {
+                unlink($targetFile);
+            }
+        }
+        
+        $_SESSION['message'] = "Failed to make transaction: " . $e->getMessage();
         $_SESSION['messagestatus'] = 'Error';
         header("Location: " . $_SERVER['PHP_SELF']);
         exit();
@@ -75,12 +108,6 @@ if(isset($_POST['sendDocument'])) {
 
 $vpaaSql = "SELECT *, Campus_Description FROM department LEFT JOIN campus ON department.Campus = campus.Campus_No WHERE Department_No = 101";
 $vpaaData = $db->fetchAll($vpaaSql);
-
-$allDepartment = "SELECT *, COALESCE(Campus_Description, '') AS Campus_Description 
-                FROM department LEFT JOIN campus ON department.Campus = campus.Campus_No 
-                WHERE Department_No != 101
-                ORDER BY Department_No";
-$allDepartmentData = $db->fetchAll($allDepartment);
 
 ?>
 <div class="main-content p-3">
@@ -192,7 +219,8 @@ $allDepartmentData = $db->fetchAll($allDepartment);
                         <?php 
                             $selectAllOfficeSQL = "SELECT d.*, c.Campus_Description
                                                 FROM department d
-                                                LEFT JOIN campus c ON d.Campus = c.Campus_No";
+                                                LEFT JOIN campus c ON d.Campus = c.Campus_No
+                                                WHERE d.Department_No != 101";
                             $fetchOfficeResult = $db->fetchAll($selectAllOfficeSQL);
                             foreach ($fetchOfficeResult as $fo) { ?>
                                 <li class="list-group-item" data-category="<?=$fo['Category']?>">
